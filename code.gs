@@ -5,7 +5,7 @@ const logSheetName       = 'Log'
 
 const botHandle      = '@materialinput_bot'
 const botToken       = '7206837593:AAFplmvAFcNwyYFQXOR9NI458-cOPKMo7hM'
-const appsScriptUrl  = 'https://script.google.com/macros/s/AKfycby4TZWgmdEwsI0M8x3KxCIjegZlC39GUwFfMscz0D0jthnQyf2jrwyntqoESHd-HDO23g/exec'
+const appsScriptUrl  = 'https://script.google.com/macros/s/AKfycbzCGY-EtW3L_CWUJeR4jNgXuyU0kVnCL5cj4ITEd5tXs21UnW8ZCP-2XTE2arIU_bOQPw/exec'
 const telegramApiUrl = `https://api.telegram.org/bot${botToken}`
 
 function log(logMessage = '') {
@@ -115,6 +115,7 @@ function inputDataOrder(data) {
     const number  = lastRow
     const idSubmit = `RF-${number}`
     const today   = new Date
+    
 
     // insert row kosong
     sheet.insertRowAfter(lastRow)
@@ -130,6 +131,7 @@ function inputDataOrder(data) {
     sheet.getRange(`H${row}`).setValue(data['tahun'])
     sheet.getRange(`I${row}`).setValue(data['jumlah'])
     sheet.getRange(`J${row}`).setValue(data['chatId'])
+    sheet.getRange(`K${row}`).setValue(data['urlFile'])
 
     // jika berhasil, return idSubmit
     return idSubmit
@@ -142,11 +144,28 @@ function inputDataOrder(data) {
 
 function doPost(e) {
   try {
+    
     // urai pesan masuk
     const contents            = JSON.parse(e.postData.contents)
+
+    const photoObj = contents.message.photo
+    let fileUri = null
+    if(photoObj) {
+      const fileId = contents.message.photo[3].file_id
+      const telegramPhotoObj = 'https://api.telegram.org/bot'+botToken+'/getFile?file_id='+fileId
+      const responsePhoto = UrlFetchApp.fetch(telegramPhotoObj)
+      const getBody = JSON.parse(responsePhoto)
+      fileUri = 'https://api.telegram.org/file/bot'+botToken+'/'+getBody.result.file_path
+
+      // set file url
+      log(fileUri)
+      
+    }
+    log(contents.message)
+
     const chatId              = contents.message.chat.id
     const receivedTextMessage = contents.message.text.replace(botHandle, '').trim() // hapus botHandle jika pesan berasal dari grup
-    const messageId           = contents.message.message_id
+    const messageId           = contents.message.reply_to_message_id
 
     let messageReply = ''
 
@@ -162,13 +181,14 @@ function doPost(e) {
       // 2a.jika ada data
       if (parsedMessage) {
         const data = {
-          namateknisi      : parsedMessage['namateknisi'],
-          mitra: parsedMessage['mitra'],
-          jenismaterial    : parsedMessage['jenismaterial'],
+          namateknisi  : parsedMessage['namateknisi'],
+          mitra        : parsedMessage['mitra'],
+          jenismaterial: parsedMessage['jenismaterial'],
           panjang      : parsedMessage['panjang'],
-          tahun      : parsedMessage['tahun'],
-          jumlah      : parsedMessage['jumlah'],
-          chatId    : chatId
+          tahun        : parsedMessage['tahun'],
+          jumlah       : parsedMessage['jumlah'],
+          chatId       : chatId,
+          urlFile      : fileUri
         }
 
         // insert data ke sheet
@@ -185,6 +205,7 @@ function doPost(e) {
     // 4. format
     } else if (receivedTextMessage.toLowerCase() === '/format') {
       messageReply = `Untuk <b>input data material </b> gunakan format:
+      
 
 <pre>/input
 Nama Teknisi: 
@@ -194,7 +215,7 @@ Panjang:
 Tahun: 
 Jumlah: </pre>
 
-(Jika ada data yang tidak diketahui gunakan (-))`
+(Jika terdapat data yang tidak diketahui gunakan (-))`
 
     // 5. format salah
     } else {
@@ -210,6 +231,8 @@ Kirim perintah /format untuk melihat daftar format pesan yang tersedia.`
     log(err)
   }
 }
+
+
 
 function setWebhook() {
   // akses api
